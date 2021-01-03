@@ -1,0 +1,20 @@
+ec_sensors:
+  - index: 0
+    wien_voltage_peak: 0.207
+    address: 72
+    k_cell: 1.0
+    res_amp: 1000.0
+    v_ref: 3.3
+    adc_steps: 4096
+    calibration:
+      ec:
+        - 0.0
+        - 11670
+      voltage:
+        - 0.216
+        - 2.121
+    sample_multiplier: 3
+
+
+temperature_coeff: 0.019
+samples_per_second: 231

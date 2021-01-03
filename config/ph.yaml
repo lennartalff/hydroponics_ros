@@ -1,0 +1,16 @@
+ph_sensors:
+  - index: 0
+    address: 73
+    adc_steps: 4096
+    v_ref: 3.0
+    calibration:
+      ph:
+        - 4.0
+        - 7.0
+      voltage:
+        - 1.6557
+        - 1.48057
+
+samples_per_second: 40
+
+

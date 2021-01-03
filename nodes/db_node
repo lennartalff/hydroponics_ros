@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import rospy
+from hydroponics import db
+from hydroponics.node import Node
+from hydroponics.msg import Ec, Float64Stamped, LedTemperature, Ph
+
+
+class DatabaseNode(Node):
+    def __init__(self, name):
+        super(DatabaseNode, self).__init__(name=name)
+        self.db = db.Database("hydro")
+        rospy.Subscriber("ph", Ph, self.on_ph)
+        rospy.Subscriber("ec", Ec, self.on_ec)
+        rospy.Subscriber("water_temperature", Float64Stamped,
+                         self.on_water_temperature)
+        rospy.Subscriber("air_humidity", Float64Stamped, self.on_humidity)
+        rospy.Subscriber("air_pressure", Float64Stamped, self.on_pressure)
+        rospy.Subscriber("air_temperature", Float64Stamped,
+                         self.on_air_temperature)
+        rospy.Subscriber("led_temperature", LedTemperature,
+                         self.on_led_temperature)
+
+    def on_ph(self, msg):
+        stamp = msg.header.stamp.to_sec()
+        index = msg.index
+        value = msg.ph
+        self.db.insert_ph(index=index, value=value, stamp=stamp)
+
+    def on_ec(self, msg):
+        stamp = msg.header.stamp.to_sec()
+        index = msg.index
+        raw = msg.ec_raw
+        compensated = msg.ec_compensated
+        self.db.insert_ec(index=index, type="raw", value=raw, stamp=stamp)
+        self.db.insert_ec(index=index,
+                          type="compensated",
+                          value=compensated,
+                          stamp=stamp)
+
+    def on_water_temperature(self, msg):
+        stamp = msg.header.stamp.to_sec()
+        value = msg.data
+        self.db.insert_water_temperature(value=value, stamp=stamp)
+
+    def on_humidity(self, msg):
+        stamp = msg.header.stamp.to_sec()
+        value = msg.data
+        index = msg.index
+        self.db.insert_humidity(index=index, value=value, stamp=stamp)
+
+    def on_air_temperature(self, msg):
+        stamp = msg.header.stamp.to_sec()
+        value = msg.data
+        index = msg.index
+        self.db.insert_air_temperature(index=index, value=value, stamp=stamp)
+
+    def on_pressure(self, msg):
+        stamp = msg.header.stamp.to_sec()
+        value = msg.data
+        index = msg.index
+        self.db.insert_pressure(index=index, value=value, stamp=stamp)
+
+    def on_led_temperature(self, msg):
+        stamp = msg.header.stamp.to_sec()
+        min_val = msg.min
+        max_val = msg.max
+        avg_val = msg.avg
+        self.db.insert_led_temperature(min_val=min_val,
+                                       max_val=max_val,
+                                       avg_val=avg_val,
+                                       stamp=stamp)
+
+
+def main():
+    node = DatabaseNode("database")
+    node.run()
+
+
+if __name__ == "__main__":
+    main()

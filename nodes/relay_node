@@ -1,0 +1,46 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import RPi.GPIO as GPIO
+import rospy
+from hydroponics.srv import SetRelay
+from hydroponics.node import Node
+
+
+class RelayNode(Node):
+    def __init__(self, name):
+        super(RelayNode, self).__init__(name=name)
+        rospy.on_shutdown(self.on_shutdown)
+        self.relays = self.get_param("relay_pins")
+        GPIO.setmode(GPIO.BCM)
+        self.init_gpio()
+        rospy.Service("set_relay", SetRelay, self.on_set_relay)
+
+    def init_gpio(self):
+        for relay in self.relays:
+            GPIO.setup(relay, GPIO.OUT)
+            GPIO.output(relay, GPIO.HIGH)
+
+    def on_set_relay(self, req):
+        relay = min(max(0, req.relay), 7)
+        if req.state:
+            try:
+                GPIO.output(self.relays[relay], GPIO.LOW)
+            except IndexError:
+                rospy.logerr("Requested relay '%d' is out of range: %s", relay,
+                             self.relays)
+        else:
+            GPIO.output(self.relays[relay], GPIO.HIGH)
+        return dict(success=True)
+
+    def on_shutdown(self):
+        self.init_gpio()
+        GPIO.cleanup()
+
+
+def main():
+    node = RelayNode("relay_node")
+    node.run()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="hydroponics" type="ph_node" name="ph" output="log" respawn="true">
+        <rosparam command="load" file="$(find hydroponics)/config/ph.yaml" />
+    </node>
+</launch>

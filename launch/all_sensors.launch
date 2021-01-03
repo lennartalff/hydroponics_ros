@@ -1,0 +1,8 @@
+<launch>
+    <include file="$(find hydroponics)/launch/relay.launch" />
+    <include file="$(find hydroponics)/launch/led_temperature.launch" />
+    <include file="$(find hydroponics)/launch/water_temperature.launch" />
+    <include file="$(find hydroponics)/launch/ph.launch" />
+    <include file="$(find hydroponics)/launch/ec.launch" />
+    <include file="$(find hydroponics)/launch/air.launch" />
+</launch>

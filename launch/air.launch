@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="hydroponics" type="air_node" name="air" output="log" respawn="true">
+        <rosparam command="load" file="$(find hydroponics)/config/air.yaml" />
+    </node>
+</launch>

@@ -1,0 +1,73 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import rospy
+from hydroponics.node import Node
+import hydroponics.ds18b20 as ds18b20
+from hydroponics.msg import Float64Stamped
+
+N_RETRIES = 10
+
+
+class WaterTempNode(Node):
+    def __init__(self, name):
+        super(WaterTempNode, self).__init__(name=name, disable_signals=True)
+
+        self.roms = self.get_param("~roms")
+        self.ds18b20 = ds18b20.ds18b20()
+        self.sampling_rate = self.get_param("~sampling_rate", 0.5)
+        self.last_temperatures = [20 for _ in self.roms]
+        self.timeouts = [0 for _ in self.roms]
+
+        self.temperature_pub = rospy.Publisher("water_temperature",
+                                               Float64Stamped,
+                                               queue_size=1)
+
+    def run(self):
+        rate = rospy.Rate(self.sampling_rate)
+        while not rospy.is_shutdown():
+            temperatures = self.ds18b20.read_temperatures(self.roms)
+            n_invalid = sum(x is None for x in temperatures)
+
+            if n_invalid:
+                self.handle_invalid_temperatures(temperatures)
+            else:
+                self.reset_timeouts()
+
+            self.publish_temperature(temperatures)
+            rate.sleep()
+
+    def publish_temperature(self, temperatures):
+        msg = Float64Stamped()
+        msg.header.stamp = rospy.Time.now()
+        msg.data = sum(temperatures) / len(temperatures)
+        self.temperature_pub.publish(msg)
+
+    def handle_invalid_temperatures(self, temperatures):
+        for i, temperature in enumerate(temperatures):
+            if temperature is None:
+                self.timeouts[i] += 1
+                temperatures[i] = self.last_temperatures[i]
+                if self.timeouts[i] >= N_RETRIES:
+                    rospy.logerr("Could not read sensor %s after %d tries!",
+                                 ds18b20.names_from_ids([self.roms[i]]),
+                                 N_RETRIES)
+            else:
+                self.timeouts[i] = 0
+
+        return temperature
+
+    def reset_timeouts(self):
+        temp = [0 for _ in self.timeouts]
+        self.timeouts = temp
+
+
+def main():
+    node = WaterTempNode("water_temperature")
+    try:
+        node.run()
+    except KeyboardInterrupt:
+        rospy.signal_shutdown("Keyboard Interrupt")
+
+
+if __name__ == "__main__":
+    main()

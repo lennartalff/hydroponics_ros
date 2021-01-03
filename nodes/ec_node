@@ -1,0 +1,86 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import rospy
+from hydroponics.msg import Ec
+from hydroponics.node import Node
+from hydroponics.mcp3221 import mcp3221
+import smbus2
+
+
+class EcNode(Node):
+    def __init__(self, name):
+        super(EcNode, self).__init__(name=name)
+        self.bus = smbus2.SMBus(1)
+        self.configs = self.get_param("~ec_sensors")
+        self.samples_per_second = self.get_param("~samples_per_second")
+        self.temperature_coeff = self.get_param("~temperature_coeff")
+        self.sensors = self.init_sensors()
+        self.temperature = 20.0
+        self.ec_pub = rospy.Publisher("ec", Ec, queue_size=1)
+
+    def init_sensors(self):
+        sensors = []
+        for config in self.configs:
+            v_ref = config["v_ref"]
+            adc_steps = config["adc_steps"]
+            samples = self.samples_per_second * config["sample_multiplier"]
+            address = config["address"]
+            index = config["index"]
+            y = config["calibration"]["ec"]
+            x = config["calibration"]["voltage"]
+            sensor = mcp3221(bus=self.bus,
+                             address=address,
+                             index=index,
+                             adc_steps=adc_steps,
+                             v_ref=v_ref,
+                             n_samples=samples)
+            sensor.set_calibration(x=x, y=y)
+            sensors.append(sensor)
+        return sensors
+
+    def run(self):
+        rate = rospy.Rate(self.samples_per_second)
+        index = 0
+        while not rospy.is_shutdown():
+            index += 1
+            for sensor in self.sensors:
+                sensor.sample()
+            if index >= self.samples_per_second:
+                index = 0
+                for sensor in self.sensors:
+                    voltage, ec_raw = sensor.eval_samples()
+                    temperature = self.temperature
+                    ec_comp = self.compensate_temperature(
+                        ec_raw=ec_raw, temperature=temperature)
+                    self.publish_measurement(voltage=voltage,
+                                             ec_raw=ec_raw,
+                                             ec_compensated=ec_comp,
+                                             temperature=temperature,
+                                             index=sensor.index)
+
+            rate.sleep()
+
+    def compensate_temperature(self, ec_raw, temperature):
+        return ec_raw / (1 + self.temperature_coeff * (temperature - 25.0))
+
+    def publish_measurement(self, voltage, ec_raw, ec_compensated, temperature,
+                            index):
+        msg = Ec()
+        msg.header.stamp = rospy.Time.now()
+        msg.index = index
+        msg.ec_raw = ec_raw
+        msg.ec_compensated = ec_compensated
+        msg.voltage = voltage
+        self.ec_pub.publish(msg)
+
+
+def main():
+    node = EcNode("ec")
+    try:
+        node.run()
+    except KeyboardInterrupt:
+        rospy.signal_shutdown("")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="hydroponics" type="db_node" name="db" output="log" respawn="true" />
+</launch>

@@ -1,0 +1,63 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import rospy
+import datetime
+from hydroponics.srv import SetRelay
+from hydroponics.node import Node
+
+
+class LightNode(Node):
+    def __init__(self, name):
+        super(LightNode, self).__init__(name=name, disable_signals=True)
+
+        rospy.wait_for_service("set_relay")
+
+        self.set_relay = rospy.ServiceProxy("set_relay", SetRelay)
+
+    def get_relay_configuration(self):
+        lights = self.get_param("active_lights", verbose=False)
+        mapping = self.get_param("relay_mapping", verbose=False)
+        relays = []
+        for light in lights:
+            relay = dict()
+            relay["active"] = lights[light]
+            relay["index"] = mapping[light]
+            relays.append(relay)
+        return relays
+
+    def set_lights(self, relays, state):
+        for relay in relays:
+            self.set_relay(relay["index"], bool(state) and relay["active"])
+
+    def time_for_sunshine(self):
+        default = dict(hour=6, minute=0)
+        sunrise = self.get_param("sunrise", default=default, verbose=False)
+        sunrise = datetime.time(sunrise["hour"], sunrise["minute"])
+
+        default = dict(hour=22, minute=0)
+        sunset = self.get_param("sunset", default=default, verbose=False)
+        sunset = datetime.time(sunset["hour"], sunset["minute"])
+
+        now = datetime.datetime.now().time()
+        if sunrise < now < sunset:
+            return True
+        return False
+
+    def run(self):
+        rate = rospy.Rate(1.0 / 60.0)
+        while not rospy.is_shutdown():
+            relays = self.get_relay_configuration()
+            self.set_lights(relays, self.time_for_sunshine())
+            rate.sleep()
+
+
+def main():
+    node = LightNode("light")
+    try:
+        node.run()
+    except KeyboardInterrupt:
+        rospy.signal_shutdown("")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,74 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import rospy
+from hydroponics.msg import Ph
+from hydroponics.node import Node
+from hydroponics.mcp3221 import mcp3221
+import smbus2
+
+
+class PhNode(Node):
+    def __init__(self, name):
+        super(PhNode, self).__init__(name=name)
+        self.bus = smbus2.SMBus(1)
+        self.configs = self.get_param("~ph_sensors")
+        self.samples_per_second = self.get_param("~samples_per_second")
+        self.sensors = self.init_sensors()
+        self.ph_pub = rospy.Publisher("ph", Ph, queue_size=1)
+
+    def init_sensors(self):
+        sensors = []
+        for config in self.configs:
+            v_ref = config["v_ref"]
+            adc_steps = config["adc_steps"]
+            samples = self.samples_per_second
+            address = config["address"]
+            index = config["index"]
+            ph_values = config["calibration"]["ph"]
+            voltages = config["calibration"]["voltage"]
+            sensor = mcp3221(bus=self.bus,
+                             address=address,
+                             index=index,
+                             adc_steps=adc_steps,
+                             v_ref=v_ref,
+                             n_samples=samples)
+            sensor.set_calibration(x=voltages, y=ph_values)
+            sensor.reset_samples()
+            sensors.append(sensor)
+        return sensors
+
+    def run(self):
+        rate = rospy.Rate(self.samples_per_second)
+        index = 0
+        while not rospy.is_shutdown():
+            index += 1
+            for sensor in self.sensors:
+                sensor.sample()
+            if index >= self.samples_per_second:
+                index = 0
+                for sensor in self.sensors:
+                    voltage, ph = sensor.eval_samples()
+                    sensor.reset_samples()
+                    self.publish_measurement(ph, voltage, sensor.index)
+
+            rate.sleep()
+
+    def publish_measurement(self, ph, voltage, index):
+        msg = Ph()
+        msg.ph = ph
+        msg.voltage = voltage
+        msg.index = index
+        msg.header.stamp = rospy.Time.now()
+        self.ph_pub.publish(msg)
+
+
+def main():
+    node = PhNode("ph")
+    try:
+        node.run()
+    except KeyboardInterrupt:
+        rospy.signal_shutdown("")
+
+
+if __name__ == "__main__":
+    main()

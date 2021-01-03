@@ -1,0 +1,6 @@
+<launch>
+    
+    <node pkg="hydroponics" type="water_temperature_node" name="water_temperature" output="log" respawn="true">
+        <rosparam command="load" file="$(find hydroponics)/config/water_temperature_roms.yaml" />
+    </node>
+</launch>

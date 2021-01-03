@@ -1,0 +1,6 @@
+<launch>
+    <rosparam command="load" file="$(find hydroponics)/config/relay_mapping.yaml" />
+    <rosparam command="load" file="$(find hydroponics)/config/light.yaml" />
+    <node pkg="hydroponics" type="light_node" name="light" output="log" respawn="true" />
+    <node pkg="hydroponics" type="relay_node" name="relay" output="log" respawn="true" />
+</launch>

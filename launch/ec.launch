@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="hydroponics" type="ec_node" name="ec" output="log" respawn="true">
+        <rosparam command="load" file="$(find hydroponics)/config/ec.yaml" />
+    </node>
+</launch>

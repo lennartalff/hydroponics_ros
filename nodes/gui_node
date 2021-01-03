@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import rospy
+import sys
+from hydroponics import gui
+from hydroponics.msg import LedTemperature, Ec, Ph, Float64Stamped
+
+from PyQt4 import QtCore
+from PyQt4 import QtGui
+
+
+class Node(QtCore.QObject):
+    ph_update = QtCore.pyqtSignal(float)
+    ec_raw_update = QtCore.pyqtSignal(float)
+    ec_compensated_update = QtCore.pyqtSignal(float)
+    led_update = QtCore.pyqtSignal(float, float, float)
+    air_temp_update = QtCore.pyqtSignal(float)
+    humidity_update = QtCore.pyqtSignal(int)
+    water_temp_update = QtCore.pyqtSignal(float)
+
+    def __init__(self, main_widget):
+        super(Node, self).__init__(None)
+        rospy.init_node("gui")
+        self.overview_widget = main_widget.get_overview_widget()
+        self.ph_plot_widget = main_widget.get_ph_plot_widget()
+        self.setup_signals()
+        rospy.Subscriber("ph", Ph, self.on_ph)
+        rospy.Subscriber("ec", Ec, self.on_ec)
+        rospy.Subscriber("led_temperature", LedTemperature,
+                         self.on_led_temperature)
+        rospy.Subscriber("air_temperature", Float64Stamped,
+                         self.on_air_temperature)
+        rospy.Subscriber("air_humidity", Float64Stamped, self.on_humidity)
+        rospy.Subscriber("water_temperature", Float64Stamped,
+                         self.on_water_temperature)
+
+    def setup_signals(self):
+        self.ph_update.connect(self.overview_widget.set_ph_value)
+        self.ph_update.connect(self.ph_plot_widget.new_ph_without_stamp)
+        self.ec_raw_update.connect(self.overview_widget.set_ec_raw_value)
+        self.ec_compensated_update.connect(
+            self.overview_widget.set_ec_compensated_value)
+        self.led_update.connect(self.overview_widget.set_led_temperature)
+        self.air_temp_update.connect(self.overview_widget.set_air_temperature)
+        self.humidity_update.connect(self.overview_widget.set_humidity)
+        self.water_temp_update.connect(
+            self.overview_widget.set_water_temperature)
+
+    def on_ph(self, msg):
+        ph = msg.ph
+        self.ph_update.emit(ph)
+
+    def on_ec(self, msg):
+        raw = msg.ec_raw
+        compensated = msg.ec_compensated
+        self.ec_raw_update.emit(raw)
+        self.ec_compensated_update.emit(compensated)
+
+    def on_led_temperature(self, msg):
+        self.led_update.emit(msg.min, msg.max, msg.avg)
+
+    def on_air_temperature(self, msg):
+        self.air_temp_update.emit(msg.data)
+
+    def on_humidity(self, msg):
+        self.humidity_update.emit(int(msg.data))
+
+    def on_water_temperature(self, msg):
+        self.water_temp_update.emit(msg.data)
+
+
+def main():
+    app = QtGui.QApplication(sys.argv)
+    win = gui.MainWindow()
+    node = Node(win)
+    app.exec_()
+
+
+if __name__ == "__main__":
+    main()
